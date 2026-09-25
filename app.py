@@ -13,6 +13,13 @@ from google.protobuf.message import DecodeError
 from collections import OrderedDict
 
 app = Flask(__name__)
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "status": "online",
+        "message": "API Server is running successfully!"
+    })
+
 
 # ✅ Valid API keys
 VALID_API_KEYS = {
