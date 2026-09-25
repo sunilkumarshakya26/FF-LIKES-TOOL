@@ -5,6 +5,7 @@ from Crypto.Util.Padding import pad
 import binascii
 import aiohttp
 import requests
+import urllib3
 import json
 import like_pb2
 import uid_generator_pb2
@@ -12,21 +13,17 @@ import visit_count_pb2
 from google.protobuf.message import DecodeError
 from collections import OrderedDict
 
+# SSL warning disable
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 app = Flask(__name__)
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({
-        "status": "online",
-        "message": "API Server is running successfully!"
-    })
 
-
-# ✅ Valid API keys
+# Valid API keys
 VALID_API_KEYS = {
-    "Sunil"  # don't change warna api or bot dono nhi chalega 
+    "Sunil"
 }
 
-# 🔢 Like limit tracking
+# Like limit tracking
 daily_limit = 20
 used_count = 0
 
@@ -86,7 +83,8 @@ async def send_request(encrypted_uid, token, url):
             "X-GA": "v1 1",
             "ReleaseVersion": "OB55"
         }
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=5)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, data=edata, headers=headers) as response:
                 return await response.text()
     except Exception as e:
@@ -106,7 +104,7 @@ async def send_multiple_requests(uid, region, url):
         if tokens is None:
             return None
         tasks = []
-        for i in range(100):
+        for i in range(25):
             token = tokens[i % len(tokens)]["token"]
             tasks.append(send_request(encrypted_uid, token, url))
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -169,9 +167,8 @@ def make_request(encrypt, region, token):
 
 @app.route('/like', methods=['GET'])
 def handle_requests():
-    global used_count  # ✅ fix added
+    global used_count
 
-    # ✅ API key check
     api_key = request.args.get("key")
     if api_key not in VALID_API_KEYS:
         result = OrderedDict([
@@ -191,7 +188,7 @@ def handle_requests():
 
     try:
         def process_request():
-            global used_count  # ✅ fix added again (for nested function)
+            global used_count
 
             tokens = load_tokens(region)
             if not tokens:
@@ -221,7 +218,6 @@ def handle_requests():
             like_given = after_like - before_like
             status = 1 if like_given > 0 else 2
 
-            # ✅ Count only when successful (status == 1)
             if status == 1:
                 used_count += 1
 
@@ -254,10 +250,9 @@ def handle_requests():
         return {"error": str(e)}, 500
 
 
-# 🆕 /remain endpoint
 @app.route('/remain', methods=['GET'])
 def remain_info():
-    global used_count  # ✅ fix added
+    global used_count
 
     remaining = max(daily_limit - used_count, 0)
     data = {
